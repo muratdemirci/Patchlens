@@ -34,6 +34,10 @@ Run `docker compose up --build` and open `http://localhost:3000`. The web API ac
 
 Rules inspect added diff lines, not full program semantics. They can miss issues and produce false positives. Renames and deletions are represented in Git metadata; deleted content is not scanned. Binary files are skipped. Merge commits compare against the first parent. Shallow history errors are reported as Git errors without fetching. HTML output escapes content and is a static report.
 
+## Community
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT; see [LICENSE](LICENSE).

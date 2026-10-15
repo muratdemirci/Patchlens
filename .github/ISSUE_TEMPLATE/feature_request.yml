@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a focused improvement to Patchlens.
+title: 'feature: '
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem or workflow limitation should this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe how Patchlens should behave and who benefits.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples and edge cases
+      description: For analyzer rules, include examples that should and should not match.
+    validations:
+      required: false
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Compatibility, security, and limitations
+      description: Note relevant package boundaries, offline use, false positives, or migration concerns.
+    validations:
+      required: false

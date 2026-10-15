@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a reproducible problem in Patchlens.
+title: 'bug: '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, private source code, or sensitive diffs. For security vulnerabilities, use the private reporting link instead.
+  - type: input
+    id: version
+    attributes:
+      label: Patchlens version or commit
+      placeholder: '0.1.0 or commit SHA'
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js version, and pnpm version.
+      placeholder: 'Ubuntu 24.04, Node 24.x, pnpm 11.x'
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command or request
+      description: Include the exact CLI command or API request, with secrets removed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps or minimal reproduction
+      description: Share a small sanitized example that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Remove secrets, tokens, private source, and personal data before posting.
+    validations:
+      required: false
