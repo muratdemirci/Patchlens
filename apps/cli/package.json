@@ -1,0 +1,18 @@
+{
+  "name": "@patchlens/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "patchlens": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@patchlens/core": "workspace:*",
+    "@patchlens/git": "workspace:*",
+    "@patchlens/reporters": "workspace:*",
+    "@patchlens/rules": "workspace:*"
+  }
+}
