@@ -1,19 +1,31 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { analyze, type Severity } from '@patchlens/core';
-import { diffRefs, parseUnifiedDiff } from '@patchlens/git';
+import {
+  analyzeChanges,
+  compareBaseline,
+  parseBaseline,
+  parseConfig,
+  type AnalyzerConfig,
+  type Rule,
+  type Severity,
+} from '@patchlens/core';
+import {
+  changesBetweenRefs,
+  stagedChanges,
+  workingTreeChanges,
+} from '@patchlens/git';
 import {
   htmlReport,
   jsonReport,
   sarifReport,
   textReport,
 } from '@patchlens/reporters';
-import { builtInRules } from '@patchlens/rules';
+import { builtInRules, runExternalAdapters } from '@patchlens/rules';
 function usage(status = 2): never {
   const print = status === 0 ? console.log : console.error;
   print(
-    'Usage: patchlens --repo PATH [--base REF] [--head REF] [--format text|json|sarif|html] [--config FILE] [--output FILE] [--fail-on low|medium|high|critical]',
+    'Usage: patchlens --repo PATH [--mode working-tree|staged|refs] [--base REF] [--head REF] [--comparison merge-base|direct] [--format text|json|sarif|html] [--config FILE] [--output FILE] [--fail-on info|low|medium|high|critical]',
   );
   process.exit(status);
 }
@@ -36,8 +48,10 @@ function main(args: readonly string[]): void {
     if (
       ![
         '--repo',
+        '--mode',
         '--base',
         '--head',
+        '--comparison',
         '--format',
         '--config',
         '--output',
@@ -48,25 +62,82 @@ function main(args: readonly string[]): void {
   const repo = resolve(opts.get('--repo') ?? process.cwd());
   const format = opts.get('--format') ?? 'text';
   if (!['text', 'json', 'sarif', 'html'].includes(format)) usage();
+  const mode =
+    opts.get('--mode') ??
+    (opts.has('--base') || opts.has('--head') ? 'refs' : 'working-tree');
+  if (!['working-tree', 'staged', 'refs'].includes(mode)) usage();
+  if (mode !== 'refs' && (opts.has('--base') || opts.has('--head'))) usage();
+  const comparison = opts.get('--comparison') ?? 'merge-base';
+  if (
+    !['merge-base', 'direct'].includes(comparison) ||
+    (mode !== 'refs' && opts.has('--comparison'))
+  )
+    usage();
   const threshold = opts.get('--fail-on');
-  const order: Severity[] = ['low', 'medium', 'high', 'critical'];
+  const order: Severity[] = ['info', 'low', 'medium', 'high', 'critical'];
   if (threshold && !order.includes(threshold as Severity)) usage();
-  const configFile = opts.get('--config');
-  let config: unknown = {};
-  if (configFile) {
+  const configFile = resolve(repo, opts.get('--config') ?? '.patchlens.yml');
+  let config: AnalyzerConfig = {};
+  if (existsSync(configFile)) {
     try {
       const text = readFileSync(resolve(configFile), 'utf8');
-      if (text.length > 1024 * 1024) throw new Error('Config exceeds 1 MiB');
-      config = JSON.parse(text) as unknown;
+      config = parseConfig(text);
     } catch (error) {
       throw new Error(
         `Cannot read config: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       );
     }
+  } else if (opts.has('--config')) {
+    throw new Error('Config file does not exist: ' + configFile);
   }
-  const diff = diffRefs(repo, opts.get('--base'), opts.get('--head'));
-  const report = analyze(parseUnifiedDiff(diff), builtInRules, config);
+  const changes =
+    mode === 'working-tree'
+      ? workingTreeChanges(repo)
+      : mode === 'staged'
+        ? stagedChanges(repo)
+        : changesBetweenRefs(
+            repo,
+            opts.get('--base'),
+            opts.get('--head'),
+            comparison as 'merge-base' | 'direct',
+          );
+  const adapterResult = runExternalAdapters(
+    config.externalAdapters,
+    repo,
+    changes.files.map((file) => file.path),
+  );
+  for (const failure of adapterResult.failures)
+    console.error(
+      'Patchlens adapter ' + failure.adapter + ': ' + failure.message,
+    );
+  const adapterGroups = new Map<string, typeof adapterResult.findings>();
+  for (const finding of adapterResult.findings) {
+    const group = adapterGroups.get(finding.ruleId) ?? [];
+    group.push(finding);
+    adapterGroups.set(finding.ruleId, group);
+  }
+  const adapterRules: Rule[] = [...adapterGroups].map(([id, findings]) => ({
+    id,
+    title: findings[0]?.title ?? id,
+    defaultSeverity: findings[0]?.severity ?? 'info',
+    confidence: findings[0]?.confidence ?? 'low',
+    remediation:
+      findings[0]?.remediation ?? 'Review the external analyzer guidance.',
+    analyze: () => findings,
+  }));
+  let report = analyzeChanges(
+    changes,
+    [...builtInRules, ...adapterRules],
+    config,
+  );
+  if (config.baseline) {
+    const baselinePath = resolve(repo, config.baseline);
+    report = compareBaseline(
+      report,
+      parseBaseline(readFileSync(baselinePath, 'utf8')),
+    );
+  }
   const rendered =
     format === 'json'
       ? jsonReport(report)
@@ -78,10 +149,18 @@ function main(args: readonly string[]): void {
   const output = opts.get('--output');
   if (output) writeFileSync(resolve(output), rendered, 'utf8');
   else console.log(rendered);
-  if (
-    threshold &&
+  const failOn =
+    (threshold as Severity | undefined) ?? config.thresholds?.failOn;
+  const confidenceOrder = ['low', 'medium', 'high'];
+  const minConfidence = config.thresholds?.minConfidence ?? 'low';
+  if (adapterResult.failures.length > 0) process.exitCode = 2;
+  else if (
+    failOn &&
     report.findings.some(
-      (f) => order.indexOf(f.severity) >= order.indexOf(threshold as Severity),
+      (finding) =>
+        order.indexOf(finding.severity) >= order.indexOf(failOn) &&
+        confidenceOrder.indexOf(finding.confidence) >=
+          confidenceOrder.indexOf(minConfidence),
     )
   )
     process.exitCode = 1;

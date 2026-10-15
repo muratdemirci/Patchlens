@@ -35,6 +35,26 @@ describe('POST /api/analyze', () => {
       findings: [{ ruleId: 'PL-JS-001' }],
     });
   });
+  it('runs syntax-context rules when a pasted diff includes changed source', async () => {
+    const diff = [
+      'diff --git a/src/tls.ts b/src/tls.ts',
+      '--- /dev/null',
+      '+++ b/src/tls.ts',
+      '@@ -0,0 +1 @@',
+      '+const agent = { rejectUnauthorized: false };',
+    ].join('\n');
+    const response = await POST(
+      new Request('http://localhost/api/analyze', {
+        method: 'POST',
+        body: JSON.stringify({ diff }),
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      findings: [{ ruleId: 'PL-SEC-003', range: { startLine: 1 } }],
+    });
+  });
   it('rejects payloads above the request-size cap', async () => {
     const response = await POST(
       new Request('http://localhost/api/analyze', {
