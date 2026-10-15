@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { analyze } from '@patchlens/core';
-import { parseUnifiedDiff } from '@patchlens/git';
+import { analyzeChanges } from '@patchlens/core';
+import { parseDiff } from '@patchlens/git';
 import { builtInRules } from '@patchlens/rules';
 export const runtime = 'nodejs';
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -72,8 +72,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 400 },
       );
     return NextResponse.json(
-      analyze(
-        parseUnifiedDiff((payload as { diff: string }).diff),
+      analyzeChanges(
+        parseDiff((payload as { diff: string }).diff),
         builtInRules,
       ),
       { headers: { 'cache-control': 'no-store' } },
