@@ -1,0 +1,6 @@
+diff --git a/src/safe.ts b/src/safe.ts
+--- a/src/safe.ts
++++ b/src/safe.ts
+@@ -0,0 +1,2 @@
++const count = Number.parseInt(input, 10);
++element.textContent = request.body;
